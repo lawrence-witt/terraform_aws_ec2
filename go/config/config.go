@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	DB_URL string `envconfig:"DB_URL" default:"postgresql://user:password@localhost:5432/taes?sslmode=disable"`
+	DB_URL string `envconfig:"DB_URL" default:"postgresql://user:password@localhost:6543/taes?sslmode=disable"`
 	Host   string `envconfig:"HOST" default:"0.0.0.0"`
 	Port   string `envconfig:"PORT" default:"8080"`
 }
