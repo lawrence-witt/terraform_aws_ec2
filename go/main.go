@@ -16,7 +16,7 @@ import (
 func main() {
 	app, err := app.NewApplication()
 	if err != nil {
-		log.Fatalf("ould not create new application: %v", err)
+		log.Fatalf("could not create new application: %v", err)
 	}
 
 	srv := server.
