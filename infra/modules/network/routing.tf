@@ -29,7 +29,7 @@ resource "aws_route_table_association" "private_route_table_association" {
 }
 
 resource "aws_route" "private_route" {
-  route_table_id         = aws_route_table.public_route_table.id
+  route_table_id         = aws_route_table.private_route_table.id
   nat_gateway_id         = aws_nat_gateway.ngw.id
   destination_cidr_block = local.all_ips
 }
