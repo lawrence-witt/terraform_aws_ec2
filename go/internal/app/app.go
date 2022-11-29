@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/config"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/database"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/config"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/database"
 	"gorm.io/gorm"
 )
 

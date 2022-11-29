@@ -2,8 +2,8 @@ package router
 
 import (
 	"github.com/julienschmidt/httprouter"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/app"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/handlers"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/app"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/handlers"
 )
 
 func NewRouter(app *app.Application) *httprouter.Router {

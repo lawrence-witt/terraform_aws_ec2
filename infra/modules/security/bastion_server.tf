@@ -1,26 +1,18 @@
-resource "aws_security_group" "web_server_security_group" {
+resource "aws_security_group" "bastion_server_security_group" {
   depends_on = [
     var.vpc,
     var.public_subnet,
     var.private_subnet
   ]
 
-  description = "Public Web Server Security Group"
+  description = "Bastion Server Security Group"
   tags = {
-    name = "web_server_security_group"
+    name = "bastion_server_security_group"
   }
   vpc_id = var.vpc.id
 
   ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = [local.all_ips]
-  }
-
-  ingress {
-    description = "SSH"
+    description = "Public SSH Access"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"

@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/app"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/handlers/middleware"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/models"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/app"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/handlers/middleware"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/models"
 )
 
 func postNote(app *app.Application) httprouter.Handle {

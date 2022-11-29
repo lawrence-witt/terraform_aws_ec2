@@ -1,15 +1,15 @@
-apply:
-	cd infra && terraform apply
-.PHONY: apply
+create-infra:
+	export TF_AUTO_APPROVE=-auto-approve && cd infra && make apply
+.PHONY: run-infra
 
-run-api:
-	cd go && go run ./main.go
-.PHONY: run-api
+drop-infra:
+	export TF_AUTO_APPROVE=-auto-approve && cd infra && make destroy
+.PHONY: drop-infra
 
-create-db:
-	cd docker && docker compose up -d
+create-app:
+	docker compose -f docker/docker-compose.yml up -d
 .PHONY: run-db
 
-drop-db:
-	cd docker && docker compose down
+drop-app:
+	docker compose -f docker/docker-compose.yml down
 .PHONY: drop-db
