@@ -16,34 +16,74 @@ module "security" {
   private_subnet = module.network.private_subnet
 }
 
-resource "aws_instance" "ec2_web_server" {
+# Public Bastion Server
+
+resource "aws_instance" "ec2_bastion_server" {
   ami           = var.ubuntu_ami
-  instance_type = "t2.micro"
+  instance_type = var.instance_type
   subnet_id     = module.network.public_subnet.id
 
-  vpc_security_group_ids = [module.security.web_server_security_group.id]
+  key_name = aws_key_pair.ec2_bastion_key_pair.key_name
+
+  vpc_security_group_ids = [module.security.bastion_server_security_group.id]
 
   tags = {
-    name = "ec2_web_server"
+    name = "ec2_bastion_server"
   }
 }
 
-resource "aws_eip" "ec2_web_server_ip" {
-  instance = aws_instance.ec2_web_server.id
+resource "aws_eip" "ec2_bastion_server_ip" {
+  instance = aws_instance.ec2_bastion_server.id
   vpc      = true
   tags = {
-    name = "web_server_ip"
+    name = "bastion_server_ip"
   }
 }
+
+resource "aws_key_pair" "ec2_bastion_key_pair" {
+  key_name   = var.ssh_key_name
+  public_key = var.ssh_pub_key
+  tags = {
+    name = var.ssh_key_name
+  }
+}
+
+# Public API Server
+
+resource "aws_instance" "ec2_api_server" {
+  ami           = var.ubuntu_ami
+  instance_type = var.instance_type
+  subnet_id     = module.network.public_subnet.id
+
+  key_name = aws_key_pair.ec2_bastion_key_pair.key_name
+
+  vpc_security_group_ids = [module.security.api_server_security_group.id]
+
+  tags = {
+    name = "ec2_api_server"
+  }
+}
+
+resource "aws_eip" "ec2_api_server_ip" {
+  instance = aws_instance.ec2_api_server.id
+  vpc      = true
+  tags = {
+    name = "api_server_ip"
+  }
+}
+
+# Private DB Server
 
 resource "aws_instance" "ec2_db_server" {
   depends_on = [
-    aws_instance.ec2_web_server
+    aws_instance.ec2_api_server
   ]
 
   ami           = var.ubuntu_ami
-  instance_type = "t2.micro"
+  instance_type = var.instance_type
   subnet_id     = module.network.private_subnet.id
+
+  key_name = aws_key_pair.ec2_bastion_key_pair.key_name
 
   vpc_security_group_ids = [module.security.db_server_security_group.id]
 

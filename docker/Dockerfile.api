@@ -1,0 +1,20 @@
+FROM golang:1.18-alpine
+
+WORKDIR /app
+
+ARG DB_URL
+ENV DB_URL ${DB_URL}
+
+COPY /go/go.mod ./
+COPY /go/go.sum ./
+
+RUN go mod download
+
+COPY /go/cmd ./cmd
+COPY /go/internal ./internal
+
+RUN go build -o /api cmd/main.go
+
+EXPOSE 8080
+
+CMD ["/api"]

@@ -3,10 +3,9 @@ package database
 import (
 	"fmt"
 
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/models"
 )
 
 func ReadyStateDB(databaseURL string) (*gorm.DB, error) {

@@ -7,10 +7,10 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/app"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/process"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/router"
-	"github.com/lawrence-witt/terraform-aws-ec2-server/go/server"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/app"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/process"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/router"
+	"github.com/lawrence-witt/terraform-aws-ec2-server/go/internal/server"
 )
 
 func main() {

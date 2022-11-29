@@ -1,0 +1,168 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/**"
+      - "docker/**"
+      - "infra/**"
+      - "go/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/**"
+      - "docker/**"
+      - "infra/**"
+      - "go/**"
+  
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.1.7
+          cli_config_credentials_token: ${{secrets.TF_API_KEY}}
+
+      - name: Terraform format checking
+        run: make fmt
+
+      - name: Terraform validation
+        run: make init && make validate
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    permissions:
+      contents: read
+    needs: validate
+    outputs:
+      bastion_server_public_ip: ${{steps.output.outputs.bastion_server_public_ip}}
+      api_server_public_ip: ${{steps.output.outputs.api_server_public_ip}}
+      api_server_private_ip: ${{steps.output.outputs.api_server_private_ip}}
+      db_server_private_ip: ${{steps.output.outputs.db_server_private_ip}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+          terraform_version: 1.1.7
+          cli_config_credentials_token: ${{secrets.TF_API_KEY}}
+
+      - name: Apply infra changes
+        run: make init && make apply
+        env:
+          TF_AUTO_APPROVE: -auto-approve
+
+      - name: Output infra changes
+        id: output
+        run: |
+          echo "bastion_server_public_ip=$(terraform output -raw bastion_server_public_ip)" >> $GITHUB_OUTPUT
+          echo "api_server_public_ip=$(terraform output -raw api_server_public_ip)" >> $GITHUB_OUTPUT
+          echo "api_server_private_ip=$(terraform output -raw api_server_private_ip)" >> $GITHUB_OUTPUT
+          echo "db_server_private_ip=$(terraform output -raw db_server_private_ip)" >> $GITHUB_OUTPUT
+  db:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Docker Login
+        env:
+          DOCKER_USER: ${{secrets.DOCKER_USER}}
+          DOCKER_PASSWORD: ${{secrets.DOCKER_PASSWORD}}
+        run:
+          docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+
+      - name: Docker Build and Push
+        env:
+          DOCKER_REPO: ${{github.event.repository.name}}-db
+          DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-db
+          POSTGRES_DB: ${{secrets.POSTGRES_DB}}
+          POSTGRES_USER: ${{secrets.POSTGRES_USER}}
+          POSTGRES_PASSWORD: ${{secrets.POSTGRES_PASSWORD}}
+        run: |
+          docker build . -f docker/Dockerfile.db --build-arg POSTGRES_DB --build-arg POSTGRES_USER --build-arg POSTGRES_PASSWORD -t $DOCKER_REPO
+          docker tag $DOCKER_REPO:latest $DOCKER_TARGET:latest
+          docker push $DOCKER_TARGET
+
+      - name: Configure SSH
+        env:
+          SSH_USER: ubuntu
+          PROXY_HOST: ${{needs.build.outputs.bastion_server_public_ip}}
+          TARGET_HOST: ${{needs.build.outputs.db_server_private_ip}}
+          PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
+        run: |
+          chmod u+x ./.github/scripts/ssh.sh
+          echo $SSH_USER $PROXY_HOST $TARGET_HOST $PRIVATE_KEY
+          ./.github/scripts/ssh.sh
+
+      - name: Docker Pull and Run
+        env:
+          DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-db
+        run: |
+          (echo "export DOCKER_TARGET=$DOCKER_TARGET"; cat ./.github/scripts/db.sh) | ssh -J proxy target
+  api:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Docker Login
+        env:
+          DOCKER_USER: ${{secrets.DOCKER_USER}}
+          DOCKER_PASSWORD: ${{secrets.DOCKER_PASSWORD}}
+        run: docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+
+      - name: Docker Build and Push
+        env:
+          DOCKER_REPO: ${{github.event.repository.name}}-api
+          DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-api
+          DB_HOST: ${{needs.build.outputs.db_server_private_ip}}
+          POSTGRES_DB: ${{secrets.POSTGRES_DB}}
+          POSTGRES_USER: ${{secrets.POSTGRES_USER}}
+          POSTGRES_PASSWORD: ${{secrets.POSTGRES_PASSWORD}}
+        run: |
+          export DB_URL=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$DB_HOST:5432/$POSTGRES_DB?sslmode=disable
+          docker build . -f docker/Dockerfile.api --build-arg DB_URL -t $DOCKER_REPO
+          docker tag $DOCKER_REPO:latest $DOCKER_TARGET:latest
+          docker push $DOCKER_TARGET
+
+      - name: Configure SSH
+        env:
+          SSH_USER: ubuntu
+          PROXY_HOST: ${{needs.build.outputs.bastion_server_public_ip}}
+          TARGET_HOST: ${{needs.build.outputs.api_server_private_ip}}
+          PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
+        run: |
+          chmod u+x ./.github/scripts/ssh.sh
+          echo $SSH_USER $PROXY_HOST $TARGET_HOST $PRIVATE_KEY
+          ./.github/scripts/ssh.sh
+
+      - name: Docker Pull and Run
+        env:
+          DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-api
+        run: |
+          (echo "export DOCKER_TARGET=$DOCKER_TARGET"; cat ./.github/scripts/api.sh) | ssh -J proxy target
