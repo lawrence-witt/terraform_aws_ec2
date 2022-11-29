@@ -10,4 +10,4 @@ sudo apt-get install docker-ce -y
 sudo docker stop db
 sudo docker rm db
 sudo docker pull $DOCKER_TARGET
-sudo docker run -d --name db -p 5432:5432 --restart unless-stopped $DOCKER_TARGET
+sudo docker run -d --name db -v ./data:/var/lib/postgresql/data -p 5432:5432 --restart unless-stopped $DOCKER_TARGET
