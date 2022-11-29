@@ -50,10 +50,9 @@ jobs:
       contents: read
     needs: validate
     outputs:
-      bastion_server_public_ip: ${{steps.output.outputs.bastion_server_public_ip}}
-      api_server_public_ip: ${{steps.output.outputs.api_server_public_ip}}
-      api_server_private_ip: ${{steps.output.outputs.api_server_private_ip}}
-      db_server_private_ip: ${{steps.output.outputs.db_server_private_ip}}
+      bastion_public_ip: ${{steps.output.outputs.bastion_public_ip}}
+      api_private_ip: ${{steps.output.outputs.api_private_ip}}
+      db_private_ip: ${{steps.output.outputs.db_private_ip}}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -73,10 +72,9 @@ jobs:
       - name: Output infra changes
         id: output
         run: |
-          echo "bastion_server_public_ip=$(terraform output -raw bastion_server_public_ip)" >> $GITHUB_OUTPUT
-          echo "api_server_public_ip=$(terraform output -raw api_server_public_ip)" >> $GITHUB_OUTPUT
-          echo "api_server_private_ip=$(terraform output -raw api_server_private_ip)" >> $GITHUB_OUTPUT
-          echo "db_server_private_ip=$(terraform output -raw db_server_private_ip)" >> $GITHUB_OUTPUT
+          echo "bastion_public_ip=$(terraform output -raw bastion_public_ip)" >> $GITHUB_OUTPUT
+          echo "api_private_ip=$(terraform output -raw api_private_ip)" >> $GITHUB_OUTPUT
+          echo "db_private_ip=$(terraform output -raw db_private_ip)" >> $GITHUB_OUTPUT
   db:
     runs-on: ubuntu-latest
     permissions:
@@ -108,8 +106,8 @@ jobs:
       - name: Configure SSH
         env:
           SSH_USER: ubuntu
-          PROXY_HOST: ${{needs.build.outputs.bastion_server_public_ip}}
-          TARGET_HOST: ${{needs.build.outputs.db_server_private_ip}}
+          PROXY_HOST: ${{needs.build.outputs.bastion_public_ip}}
+          TARGET_HOST: ${{needs.build.outputs.db_private_ip}}
           PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
         run: |
           chmod u+x ./.github/scripts/ssh.sh
@@ -140,7 +138,7 @@ jobs:
         env:
           DOCKER_REPO: ${{github.event.repository.name}}-api
           DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-api
-          DB_HOST: ${{needs.build.outputs.db_server_private_ip}}
+          DB_HOST: ${{needs.build.outputs.db_private_ip}}
           POSTGRES_DB: ${{secrets.POSTGRES_DB}}
           POSTGRES_USER: ${{secrets.POSTGRES_USER}}
           POSTGRES_PASSWORD: ${{secrets.POSTGRES_PASSWORD}}
@@ -153,8 +151,8 @@ jobs:
       - name: Configure SSH
         env:
           SSH_USER: ubuntu
-          PROXY_HOST: ${{needs.build.outputs.bastion_server_public_ip}}
-          TARGET_HOST: ${{needs.build.outputs.api_server_private_ip}}
+          PROXY_HOST: ${{needs.build.outputs.bastion_public_ip}}
+          TARGET_HOST: ${{needs.build.outputs.api_private_ip}}
           PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
         run: |
           chmod u+x ./.github/scripts/ssh.sh

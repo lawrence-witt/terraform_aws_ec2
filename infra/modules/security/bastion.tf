@@ -1,4 +1,4 @@
-resource "aws_security_group" "bastion_server_security_group" {
+resource "aws_security_group" "bastion_security_group" {
   depends_on = [
     var.vpc,
     var.public_subnet,
@@ -7,7 +7,7 @@ resource "aws_security_group" "bastion_server_security_group" {
 
   description = "Bastion Server Security Group"
   tags = {
-    name = "bastion_server_security_group"
+    name = "bastion_security_group"
   }
   vpc_id = var.vpc.id
 

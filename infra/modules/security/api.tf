@@ -1,14 +1,14 @@
-resource "aws_security_group" "api_server_security_group" {
+resource "aws_security_group" "api_security_group" {
   depends_on = [
     var.vpc,
     var.public_subnet,
     var.private_subnet,
-    aws_security_group.bastion_server_security_group
+    aws_security_group.bastion_security_group
   ]
 
   description = "API Server Security Group"
   tags = {
-    name = "api_server_security_group"
+    name = "api_security_group"
   }
   vpc_id = var.vpc.id
 
@@ -25,7 +25,7 @@ resource "aws_security_group" "api_server_security_group" {
     from_port       = 22
     to_port         = 22
     protocol        = "tcp"
-    security_groups = [aws_security_group.bastion_server_security_group.id]
+    security_groups = [aws_security_group.bastion_security_group.id]
   }
 
   egress {

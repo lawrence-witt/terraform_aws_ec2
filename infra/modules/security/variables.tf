@@ -15,8 +15,3 @@ variable "private_subnet" {
     id = string
   })
 }
-
-variable "db_port" {
-  type    = number
-  default = 5432
-}
