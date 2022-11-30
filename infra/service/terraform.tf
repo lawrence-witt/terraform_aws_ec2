@@ -9,7 +9,7 @@ terraform {
   cloud {
     organization = "lawrence_witt_test"
     workspaces {
-      name = "terraform-aws-ec2-server"
+      name = "terraform_aws_ec2_service"
     }
   }
 

@@ -13,3 +13,7 @@ output "api_private_ip" {
 output "db_private_ip" {
   value = module.instances.db_private_ip
 }
+
+output "db_instance_id" {
+  value = module.instances.db_instance_id
+}

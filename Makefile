@@ -1,9 +1,17 @@
 create-infra:
-	export TF_AUTO_APPROVE=-auto-approve && cd infra && make apply
+	export TF_AUTO_APPROVE="-auto-approve" && \
+	cd infra/service && \
+	make apply
 .PHONY: run-infra
 
 drop-infra:
-	export TF_AUTO_APPROVE=-auto-approve && cd infra && make destroy
+	export TF_AUTO_APPROVE="-auto-approve" && \
+	cd infra/service && \
+	make destroy && \
+	cd ../storage && \
+	export TF_VARS="-var db_instance_id=none" && \
+	make init && \
+	make destroy
 .PHONY: drop-infra
 
 create-app:

@@ -11,7 +11,7 @@ fmt:
 .PHONY: fmt
 
 apply:
-	@terraform apply $(TF_AUTO_APPROVE)
+	@terraform apply $(TF_AUTO_APPROVE) $(TF_VARS)
 .PHONY: apply
 
 plan:
@@ -19,5 +19,5 @@ plan:
 .PHONY: plan
 
 destroy:
-	terraform destroy $(TF_AUTO_APPROVE)
+	terraform destroy $(TF_AUTO_APPROVE) $(TF_VARS)
 .PHONY: destroy
