@@ -5,8 +5,9 @@ provider "aws" {
 }
 
 module "network" {
-  source = "./modules/network"
-  region = var.region
+  source            = "./modules/network"
+  region            = var.region
+  availability_zone = var.availability_zone
 }
 
 module "security" {

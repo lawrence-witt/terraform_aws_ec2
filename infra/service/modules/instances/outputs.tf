@@ -13,3 +13,7 @@ output "api_private_ip" {
 output "db_private_ip" {
   value = aws_instance.ec2_db_server.private_ip
 }
+
+output "db_instance_id" {
+  value = aws_instance.ec2_db_server.id
+}

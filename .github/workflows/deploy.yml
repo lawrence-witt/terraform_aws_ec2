@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches:
+      - storage
       - main
     paths:
       - ".github/**"
@@ -19,11 +20,11 @@ on:
       - "go/**"
   
 jobs:
-  validate:
+  validate_service:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra
+        working-directory: infra/service
     permissions:
       contents: read
     steps:
@@ -41,18 +42,43 @@ jobs:
 
       - name: Terraform validation
         run: make init && make validate
-  build:
+
+  validate_storage:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra
+        working-directory: infra/storage
     permissions:
       contents: read
-    needs: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.1.7
+          cli_config_credentials_token: ${{secrets.TF_API_KEY}}
+
+      - name: Terraform format checking
+        run: make fmt
+
+      - name: Terraform validation
+        run: make init && make validate
+
+  build_service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/service
+    permissions:
+      contents: read
+    needs: validate_service
     outputs:
       bastion_public_ip: ${{steps.output.outputs.bastion_public_ip}}
       api_private_ip: ${{steps.output.outputs.api_private_ip}}
       db_private_ip: ${{steps.output.outputs.db_private_ip}}
+      db_instance_id: ${{steps.output.outputs.db_instance_id}}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -75,11 +101,45 @@ jobs:
           echo "bastion_public_ip=$(terraform output -raw bastion_public_ip)" >> $GITHUB_OUTPUT
           echo "api_private_ip=$(terraform output -raw api_private_ip)" >> $GITHUB_OUTPUT
           echo "db_private_ip=$(terraform output -raw db_private_ip)" >> $GITHUB_OUTPUT
+          echo "db_instance_id=$(terraform output -raw db_instance_id)" >> $GITHUB_OUTPUT
+
+  build_storage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/storage
+    permissions:
+      contents: read
+    needs: [validate_storage, build_service]
+    outputs:
+      volume_device_name: ${{steps.output.outputs.volume_device_name}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+          terraform_version: 1.1.7
+          cli_config_credentials_token: ${{secrets.TF_API_KEY}}
+
+      - name: Apply infra changes
+        run: make init && make apply
+        env:
+          TF_VARS: -var db_instance_id=${{needs.build_service.outputs.db_instance_id}}
+          TF_AUTO_APPROVE: -auto-approve
+
+      - name: Output infra changes
+        id: output
+        run: |
+          echo "volume_device_name=$(terraform output -raw volume_device_name)" >> $GITHUB_OUTPUT
+
   db:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    needs: build
+    needs: [build_service, build_storage]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -94,20 +154,20 @@ jobs:
       - name: Docker Build and Push
         env:
           DOCKER_REPO: ${{github.event.repository.name}}-db
-          DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-db
+          DOCKER_SOURCE: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-db
           POSTGRES_DB: ${{secrets.POSTGRES_DB}}
           POSTGRES_USER: ${{secrets.POSTGRES_USER}}
           POSTGRES_PASSWORD: ${{secrets.POSTGRES_PASSWORD}}
         run: |
           docker build . -f docker/Dockerfile.db --build-arg POSTGRES_DB --build-arg POSTGRES_USER --build-arg POSTGRES_PASSWORD -t $DOCKER_REPO
-          docker tag $DOCKER_REPO:latest $DOCKER_TARGET:latest
-          docker push $DOCKER_TARGET
+          docker tag $DOCKER_REPO:latest $DOCKER_SOURCE:latest
+          docker push $DOCKER_SOURCE
 
       - name: Configure SSH
         env:
           SSH_USER: ubuntu
-          PROXY_HOST: ${{needs.build.outputs.bastion_public_ip}}
-          TARGET_HOST: ${{needs.build.outputs.db_private_ip}}
+          PROXY_HOST: ${{needs.build_service.outputs.bastion_public_ip}}
+          TARGET_HOST: ${{needs.build_service.outputs.db_private_ip}}
           PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
         run: |
           chmod u+x ./.github/scripts/ssh.sh
@@ -116,14 +176,16 @@ jobs:
 
       - name: Docker Pull and Run
         env:
-          DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-db
+          DOCKER_SOURCE: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-db
+          VOLUME_DEVICE_NAME: ${{needs.build_storage.outputs.volume_device_name}}
         run: |
-          (echo "export DOCKER_TARGET=$DOCKER_TARGET"; cat ./.github/scripts/db.sh) | ssh -J proxy target
+          (echo "export DOCKER_SOURCE=$DOCKER_SOURCE VOLUME_DEVICE_NAME=$VOLUME_DEVICE_NAME"; cat ./.github/scripts/db.sh) | ssh -J proxy target
+
   api:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    needs: build
+    needs: [build_service, build_storage]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -137,22 +199,22 @@ jobs:
       - name: Docker Build and Push
         env:
           DOCKER_REPO: ${{github.event.repository.name}}-api
-          DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-api
-          DB_HOST: ${{needs.build.outputs.db_private_ip}}
+          DOCKER_SOURCE: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-api
+          DB_HOST: ${{needs.build_service.outputs.db_private_ip}}
           POSTGRES_DB: ${{secrets.POSTGRES_DB}}
           POSTGRES_USER: ${{secrets.POSTGRES_USER}}
           POSTGRES_PASSWORD: ${{secrets.POSTGRES_PASSWORD}}
         run: |
           export DB_URL=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$DB_HOST:5432/$POSTGRES_DB?sslmode=disable
           docker build . -f docker/Dockerfile.api --build-arg DB_URL -t $DOCKER_REPO
-          docker tag $DOCKER_REPO:latest $DOCKER_TARGET:latest
-          docker push $DOCKER_TARGET
+          docker tag $DOCKER_REPO:latest $DOCKER_SOURCE:latest
+          docker push $DOCKER_SOURCE
 
       - name: Configure SSH
         env:
           SSH_USER: ubuntu
-          PROXY_HOST: ${{needs.build.outputs.bastion_public_ip}}
-          TARGET_HOST: ${{needs.build.outputs.api_private_ip}}
+          PROXY_HOST: ${{needs.build_service.outputs.bastion_public_ip}}
+          TARGET_HOST: ${{needs.build_service.outputs.api_private_ip}}
           PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
         run: |
           chmod u+x ./.github/scripts/ssh.sh
@@ -161,6 +223,6 @@ jobs:
 
       - name: Docker Pull and Run
         env:
-          DOCKER_TARGET: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-api
+          DOCKER_SOURCE: ${{secrets.DOCKER_USER}}/${{github.event.repository.name}}-api
         run: |
-          (echo "export DOCKER_TARGET=$DOCKER_TARGET"; cat ./.github/scripts/api.sh) | ssh -J proxy target
+          (echo "export DOCKER_SOURCE=$DOCKER_SOURCE"; cat ./.github/scripts/api.sh) | ssh -J proxy target
