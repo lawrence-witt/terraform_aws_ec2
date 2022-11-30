@@ -9,14 +9,6 @@ on:
       - "docker/**"
       - "infra/**"
       - "go/**"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/**"
-      - "docker/**"
-      - "infra/**"
-      - "go/**"
   
 jobs:
   validate_service:
